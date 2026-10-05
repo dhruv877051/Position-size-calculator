@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Position Calc">
-<meta name="theme-color" content="#0f5c6e">
+<meta name="theme-color" content="#000000">
 <title>Position size calculator</title>
 <style>
 :root{--bg:#eef1f4;--card:#fff;--ink:#14202b;--mute:#6a7886;--line:#d9e0e6;--acc:#0f5c6e;--accfg:#fff;--win:#13795b;--loss:#b3372f;--warn:#fff4dc;--warnfg:#7a5200;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -20,7 +20,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,
 main{max-width:480px;margin:0 auto;padding:16px}
 h1{font-size:22px;margin:4px 0 14px;letter-spacing:-.01em}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
-.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border-radius:10px;padding:3px;gap:3px}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--bg);border-radius:10px;padding:3px;gap:3px}
 .seg button{border:0;background:transparent;color:var(--mute);font:600 15px inherit;font-family:inherit;padding:11px 6px;border-radius:8px}
 .seg button[aria-pressed="true"]{background:var(--acc);color:var(--accfg)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -47,9 +47,11 @@ input:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px
   <div class="seg" role="group" aria-label="Calculate from">
     <button id="mRisk" aria-pressed="true">From risk</button>
     <button id="mProfit" aria-pressed="false">From profit</button>
+    <button id="mLoss" aria-pressed="false">From loss</button>
   </div>
   <div class="grid" style="margin-top:12px">
     <div class="full" id="riskBox"><label for="riskPct">Risk per trade (% of account)</label><input id="riskPct" type="number" inputmode="decimal" step="any" value="0.5"></div>
+    <div class="full" id="lossBox" hidden><label for="lossUsd">Max loss I accept ($)</label><input id="lossUsd" type="number" inputmode="decimal" step="any" value="125"></div>
     <div class="full" id="profitBox" hidden><label for="profitUsd">Profit goal ($)</label><input id="profitUsd" type="number" inputmode="decimal" step="any" value="250"></div>
     <div><label for="acct">Account ($)</label><input id="acct" type="number" inputmode="decimal" step="any" value="25000"></div>
     <div><label for="lev">Max leverage (x)</label><input id="lev" type="number" inputmode="decimal" step="any" value="1"></div>
@@ -74,6 +76,8 @@ function setMode(m){
   $("mProfit").setAttribute("aria-pressed",m==="profit");
   $("riskBox").hidden=m!=="risk";
   $("profitBox").hidden=m!=="profit";
+  $("lossBox").hidden=m!=="loss";
+  $("mLoss").setAttribute("aria-pressed",m==="loss");
   calc();
 }
 function cap(){
@@ -101,6 +105,7 @@ function calc(){
   var sd=Math.abs(e-s),td=Math.abs(t-e);
   var size;
   if(mode==="risk"){var r=+$("riskPct").value;if(!(r>0)){out.innerHTML='<div class="note err">Enter a risk % above 0.</div>';return}size=(a*r/100)/sd}
+  else if(mode==="loss"){var l=+$("lossUsd").value;if(!(l>0)){out.innerHTML='<div class="note err">Enter a loss amount above 0.</div>';return}size=l/sd}
   else{var p=+$("profitUsd").value;if(!(p>0)){out.innerHTML='<div class="note err">Enter a profit goal above 0.</div>';return}size=p/td}
   var maxSize=a*lev/e,capped=size>maxSize,used=capped?maxSize:size;
   var notional=used*e,levUsed=notional/a,margin=notional/lev;
@@ -116,7 +121,7 @@ function calc(){
   h+='<div class="row"><span>Margin needed</span><b>$'+fmt(margin,0)+'</b></div>';
   h+='<div class="row"><span>Stop / target distance</span><b>'+fmt(sd/e*100)+'% / '+fmt(td/e*100)+'%</b></div>';
   if(capped){
-    h+='<div class="note">Your '+(mode==="risk"?"risk":"profit")+' goal needs '+fmt(size,size<10?4:2)+' units, but '+fmt(lev,1)+'x leverage caps you at '+fmt(maxSize,maxSize<10?4:2)+'. The numbers above use the cap, so '+(mode==="risk"?"you risk less than planned.":"you make less than your goal.")+'</div>';
+    h+='<div class="note">Your '+(mode==="profit"?"profit":"risk")+' goal needs '+fmt(size,size<10?4:2)+' units, but '+fmt(lev,1)+'x leverage caps you at '+fmt(maxSize,maxSize<10?4:2)+'. The numbers above use the cap, so '+(mode==="profit"?"you make less than your goal.":"you risk less than planned.")+'</div>';
   }
   if(mode==="profit"&&!capped&&risk/a>0.01){
     h+='<div class="note">Sizing from profit puts '+fmt(risk/a*100)+'% of your account at risk. Check this against your risk limit.</div>';
@@ -126,7 +131,8 @@ function calc(){
 }
 $("mRisk").onclick=function(){setMode("risk")};
 $("mProfit").onclick=function(){setMode("profit")};
-["riskPct","profitUsd","acct","lev","entry","stop","target"].forEach(function(id){$(id).addEventListener("input",calc)});
+$("mLoss").onclick=function(){setMode("loss")};
+["riskPct","lossUsd","profitUsd","acct","lev","entry","stop","target"].forEach(function(id){$(id).addEventListener("input",calc)});
 calc();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
 </script>
