@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Position Calc">
+<meta name="theme-color" content="#0f5c6e">
+<title>Position size calculator</title>
+<style>
+:root{--bg:#eef1f4;--card:#fff;--ink:#14202b;--mute:#6a7886;--line:#d9e0e6;--acc:#0f5c6e;--accfg:#fff;--win:#13795b;--loss:#b3372f;--warn:#fff4dc;--warnfg:#7a5200;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1720;--card:#18232f;--ink:#e7edf2;--mute:#8fa0b0;--line:#2a3846;--acc:#4fb3c8;--accfg:#06222a;--win:#4fd1a1;--loss:#ff8a80;--warn:#3a2f12;--warnfg:#f3cf7a}}
+:root[data-theme="dark"]{--bg:#0f1720;--card:#18232f;--ink:#e7edf2;--mute:#8fa0b0;--line:#2a3846;--acc:#4fb3c8;--accfg:#06222a;--win:#4fd1a1;--loss:#ff8a80;--warn:#3a2f12;--warnfg:#f3cf7a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:480px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 14px;letter-spacing:-.01em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border-radius:10px;padding:3px;gap:3px}
+.seg button{border:0;background:transparent;color:var(--mute);font:600 15px inherit;font-family:inherit;padding:11px 6px;border-radius:8px}
+.seg button[aria-pressed="true"]{background:var(--acc);color:var(--accfg)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
+input{width:100%;font:600 17px inherit;font-family:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px}
+input:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.full{grid-column:1/-1}
+.big{font-size:34px;font-weight:700;letter-spacing:-.02em;margin:2px 0 0}
+.sub{color:var(--mute);font-size:14px}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row b{font-weight:600}
+.win{color:var(--win)}.loss{color:var(--loss)}
+.note{border-radius:10px;padding:10px 12px;font-size:14px;margin-top:10px;background:var(--warn);color:var(--warnfg)}
+.err{background:transparent;color:var(--loss);border:1px solid var(--loss)}
+.hint{font-size:12px;color:var(--mute);margin:8px 2px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Position size calculator</h1>
+
+<div class="card">
+  <div class="seg" role="group" aria-label="Calculate from">
+    <button id="mRisk" aria-pressed="true">From risk</button>
+    <button id="mProfit" aria-pressed="false">From profit</button>
+  </div>
+  <div class="grid" style="margin-top:12px">
+    <div class="full" id="riskBox"><label for="riskPct">Risk per trade (% of account)</label><input id="riskPct" type="number" inputmode="decimal" step="any" value="0.5"></div>
+    <div class="full" id="profitBox" hidden><label for="profitUsd">Profit goal ($)</label><input id="profitUsd" type="number" inputmode="decimal" step="any" value="250"></div>
+    <div><label for="acct">Account ($)</label><input id="acct" type="number" inputmode="decimal" step="any" value="25000"></div>
+    <div><label for="lev">Max leverage (x)</label><input id="lev" type="number" inputmode="decimal" step="any" value="1"></div>
+    <div><label for="entry">Entry</label><input id="entry" type="number" inputmode="decimal" step="any" value="5.0238"></div>
+    <div><label for="stop">Stop</label><input id="stop" type="number" inputmode="decimal" step="any" value="5.0131"></div>
+    <div class="full"><label for="target">Target</label><input id="target" type="number" inputmode="decimal" step="any" value="5.0670"></div>
+  </div>
+</div>
+
+<div class="card" id="out"></div>
+<div class="card" id="cap"></div>
+<p class="hint">Direction is read from your levels: target above entry above stop is a long, the reverse is a short. Fees and slippage are not included. This is a sizing tool, not trade advice.</p>
+</main>
+
+<script>
+var mode="risk";
+var $=function(id){return document.getElementById(id)};
+function fmt(n,d){if(!isFinite(n))return"-";return n.toLocaleString("en-US",{minimumFractionDigits:d===undefined?2:d,maximumFractionDigits:d===undefined?2:d})}
+function setMode(m){
+  mode=m;
+  $("mRisk").setAttribute("aria-pressed",m==="risk");
+  $("mProfit").setAttribute("aria-pressed",m==="profit");
+  $("riskBox").hidden=m!=="risk";
+  $("profitBox").hidden=m!=="profit";
+  calc();
+}
+function cap(){
+  var a=+$("acct").value,lev=+$("lev").value,e=+$("entry").value,s=+$("stop").value,c=$("cap");
+  if(!(a>0&&lev>0&&e>0&&s>0&&e!==s)){c.innerHTML="";return}
+  var long=s<e,sd=Math.abs(e-s),max=a*lev/e,risk=max*sd,d=max<10?4:2;
+  var h='<div class="sub">Most you can trade at '+fmt(lev,1)+'x</div>';
+  h+='<div class="big">'+fmt(max,d)+' units</div>';
+  h+='<div class="sub">Notional $'+fmt(max*e,0)+' | '+(long?"Long":"Short")+'</div><div style="height:8px"></div>';
+  h+='<div class="row"><span>Loss if stop hits</span><b class="loss">$'+fmt(risk)+' ('+fmt(risk/a*100)+'%)</b></div>';
+  [1,2,3,4,5].forEach(function(r){
+    var tp=long?e+sd*r:e-sd*r;
+    h+='<div class="row"><span>'+r+'R, target '+fmt(tp,4)+'</span><b class="win">+$'+fmt(risk*r)+' ('+fmt(risk*r/a*100)+'%)</b></div>';
+  });
+  h+='<div class="hint">Profit grows with how far the target is from entry. A bigger stop lowers your loss but also lowers profit per R.</div>';
+  c.innerHTML=h;
+}
+function calc(){
+  cap();
+  var a=+$("acct").value,lev=+$("lev").value,e=+$("entry").value,s=+$("stop").value,t=+$("target").value;
+  var out=$("out");
+  var long=t>e&&e>s,short=t<e&&e<s;
+  if(!(a>0&&lev>0&&e>0&&s>0&&t>0)){out.innerHTML='<div class="note err">Fill in account, leverage, entry, stop and target.</div>';return}
+  if(!long&&!short){out.innerHTML='<div class="note err">Levels don\'t line up. For a long use stop &lt; entry &lt; target. For a short use target &lt; entry &lt; stop.</div>';return}
+  var sd=Math.abs(e-s),td=Math.abs(t-e);
+  var size;
+  if(mode==="risk"){var r=+$("riskPct").value;if(!(r>0)){out.innerHTML='<div class="note err">Enter a risk % above 0.</div>';return}size=(a*r/100)/sd}
+  else{var p=+$("profitUsd").value;if(!(p>0)){out.innerHTML='<div class="note err">Enter a profit goal above 0.</div>';return}size=p/td}
+  var maxSize=a*lev/e,capped=size>maxSize,used=capped?maxSize:size;
+  var notional=used*e,levUsed=notional/a,margin=notional/lev;
+  var risk=used*sd,profit=used*td;
+  var rr=td/sd;
+  var h='<div class="sub">'+(long?"Long":"Short")+' position size'+(capped?" (capped by leverage)":"")+'</div>';
+  h+='<div class="big">'+fmt(used,used<10?4:2)+' units</div>';
+  h+='<div class="sub">Notional $'+fmt(notional,0)+'</div><div style="height:8px"></div>';
+  h+='<div class="row"><span>Risk if stopped</span><b class="loss">$'+fmt(risk)+' ('+fmt(risk/a*100)+'%)</b></div>';
+  h+='<div class="row"><span>Profit at target</span><b class="win">$'+fmt(profit)+' ('+fmt(profit/a*100)+'%)</b></div>';
+  h+='<div class="row"><span>Reward : risk</span><b>'+fmt(rr)+'</b></div>';
+  h+='<div class="row"><span>Leverage used</span><b>'+fmt(levUsed)+'x of '+fmt(lev,1)+'x</b></div>';
+  h+='<div class="row"><span>Margin needed</span><b>$'+fmt(margin,0)+'</b></div>';
+  h+='<div class="row"><span>Stop / target distance</span><b>'+fmt(sd/e*100)+'% / '+fmt(td/e*100)+'%</b></div>';
+  if(capped){
+    h+='<div class="note">Your '+(mode==="risk"?"risk":"profit")+' goal needs '+fmt(size,size<10?4:2)+' units, but '+fmt(lev,1)+'x leverage caps you at '+fmt(maxSize,maxSize<10?4:2)+'. The numbers above use the cap, so '+(mode==="risk"?"you risk less than planned.":"you make less than your goal.")+'</div>';
+  }
+  if(mode==="profit"&&!capped&&risk/a>0.01){
+    h+='<div class="note">Sizing from profit puts '+fmt(risk/a*100)+'% of your account at risk. Check this against your risk limit.</div>';
+  }
+  if(rr<2){h+='<div class="note">Reward:risk is below 2. The trade needs a high win rate to pay off.</div>'}
+  out.innerHTML=h;
+}
+$("mRisk").onclick=function(){setMode("risk")};
+$("mProfit").onclick=function(){setMode("profit")};
+["riskPct","profitUsd","acct","lev","entry","stop","target"].forEach(function(id){$(id).addEventListener("input",calc)});
+calc();
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
+</script>
+</body>
+</html>
